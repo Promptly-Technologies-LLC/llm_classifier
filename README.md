@@ -165,7 +165,7 @@ export_responses(
         ClassificationResponse.severity >= 7,
         ClassificationResponse.category == "Security"
     ],
-    input_fields=["id", "date", "title"]
+    input_fields=["id", "processed_date", "title"]
 )
 ```
 
