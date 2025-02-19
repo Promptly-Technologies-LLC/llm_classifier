@@ -43,12 +43,8 @@ def download_data(
         # Use bulk download if the downloader defines its own get_records method
         if "get_records" in downloader.__dict__:
             records = downloader.get_records(input_type)
-            assert isinstance(records, list)
-            assert all(isinstance(record, ClassificationInput) for record in records)
         else:
             records = downloader.get_record_ids(input_type)
-            assert isinstance(records, list)
-            assert all(isinstance(record, int) for record in records)
 
         for record in records:
             try:

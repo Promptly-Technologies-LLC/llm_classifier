@@ -29,7 +29,7 @@ if __name__ == "__main__":
             return [ClassificationInput(
                 **record,
                 processed_date=date.today(),
-                input_type=input_type,
+                input_type_id=input_type.id,
             ) for record in response.json()]
 
     # Initialize database
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         export_responses(
             session,
             "responses.csv",
-            input_fields=["id", "date", "input_type", "title", "body"]
+            input_fields=["id", "processed_date", "input_type", "title", "body"]
         )
 
     engine.dispose()

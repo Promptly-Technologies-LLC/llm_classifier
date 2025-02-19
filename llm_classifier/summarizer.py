@@ -111,7 +111,7 @@ def export_responses(
     session: Session,
     output_csv: str | Path,
     where_clauses: list[Any] | None = None,
-    input_fields: list[str] = ["id", "date", "input_type"]
+    input_fields: list[str] = ["id", "processed_date", "input_type"]
 ) -> None:
     """Export filtered findings to CSV.
     
