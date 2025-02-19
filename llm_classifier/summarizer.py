@@ -40,7 +40,7 @@ def format_distribution(numeric_sequence: Sequence[float], breakpoints: int = 5)
 
     sorted_sequence = sorted(numeric_sequence)
     percentiles = [n for n in range(0, 101, 100 // breakpoints)]
-    lines = []
+    lines = ["Distribution:"]
 
     for p in percentiles:
         index = int(p / 100 * (len(sorted_sequence) - 1))
@@ -57,7 +57,7 @@ def get_numeric_sequence(session: Session, numeric_field: str) -> Sequence[float
         .where(
             col(ClassificationResponse.input_id).in_(
                 select(ClassificationInput.id).where(
-                    ClassificationInput.date >= today
+                    ClassificationInput.processed_date >= today
                 )
             )
         )
@@ -73,10 +73,7 @@ def print_summary_statistics(session: Session, numeric_field: str, breakpoints: 
         print("No processed inputs found.")
         return
     
-    print("\nSummary Statistics:")
     print(format_stats_summary(numeric_sequence))
-    
-    print("\nDistribution:")
     print(format_distribution(numeric_sequence, breakpoints=breakpoints))
 
 
@@ -92,7 +89,7 @@ def get_filtered_responses(
     """
     today = datetime.now().date()
     query = select(ClassificationResponse).join(ClassificationInput).where(
-        ClassificationInput.date >= today
+        ClassificationInput.processed_date >= today
     )
     
     if where_clauses:

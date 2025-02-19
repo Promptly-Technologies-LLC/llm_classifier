@@ -51,6 +51,10 @@ def sample_inputs() -> list[ClassificationInput]:
 
 # Test classify_inputs
 def test_classify_inputs(test_session: Session, sample_inputs: list[ClassificationInput], mock_prompt_template: str) -> None:
+    # Commit the inputs to the database
+    test_session.add_all(sample_inputs)
+    test_session.commit()
+
     # Create a dynamic mock result
     test_data = {
         field: (5 if field_info.annotation == int else "test_value")
@@ -58,9 +62,13 @@ def test_classify_inputs(test_session: Session, sample_inputs: list[Classificati
         if field not in ('id', 'input_id', 'classification_input')
     }
     mock_result = ClassificationResponse(**test_data)
-    
-    classify_inputs(sample_inputs, mock_prompt_template, ClassificationResponse, test_session)
-    
+
+    # Patch classify_text to return the mock result
+    with patch('llm_classifier.classifier.classify_text', return_value=mock_result):
+        # Pass the IDs of the sample inputs
+        input_ids: list[int] = [input.id for input in sample_inputs if input.id is not None]
+        classify_inputs(input_ids, mock_prompt_template, ClassificationResponse, test_session)
+
     results = test_session.exec(select(ClassificationResponse)).all()
     assert len(results) == len(sample_inputs)
     assert all(isinstance(r, ClassificationResponse) for r in results)
@@ -70,16 +78,26 @@ def test_classify_inputs(test_session: Session, sample_inputs: list[Classificati
             assert getattr(result, field_name) == expected_value
 
 def test_classify_inputs_duplicate_prevention(test_session: Session, sample_inputs: list[ClassificationInput], mock_prompt_template: str) -> None:
+    # Commit the inputs to the database
+    test_session.add_all(sample_inputs)
+    test_session.commit()
+
     mock_result = ClassificationResponse(
         most_investable_insight="test",
         reason_its_investable="reason",
         score=5
     )
     
-    # Run classification twice
-    classify_inputs(sample_inputs, mock_prompt_template, ClassificationResponse, test_session)
-    classify_inputs(sample_inputs, mock_prompt_template, ClassificationResponse, test_session)
-    
+    # Patch classify_text to return the mock result
+    with patch('llm_classifier.classifier.classify_text', return_value=mock_result):
+        # Pass the IDs of the sample inputs
+        input_ids: list[int] = [input.id for input in sample_inputs if input.id is not None]
+        assert all(input_ids)
+
+        # Run classification twice
+        classify_inputs(input_ids, mock_prompt_template, ClassificationResponse, test_session)
+        classify_inputs(input_ids, mock_prompt_template, ClassificationResponse, test_session)
+
     # Verify no duplicates were created
     results = test_session.exec(select(ClassificationResponse)).all()
     assert len(results) == len(sample_inputs)

@@ -6,7 +6,8 @@ if __name__ == "__main__":
     from datetime import date
     import requests
     from typing import override
-    from sqlmodel import Session
+    from sqlmodel import Session, select
+    from sqlalchemy import inspect
     from llm_classifier.database import init_database, seed_input_types, ClassificationInput, ClassificationResponse, InputType
     from llm_classifier.downloader import download_data, Downloader
     from llm_classifier.classifier import classify_inputs
@@ -35,13 +36,21 @@ if __name__ == "__main__":
     engine = init_database(os.getenv("DB_PATH", "data.db"))
 
     with Session(engine) as session:
+        INPUT_TYPES = ["Posts"]
+        
         # Seed input types
-        seed_input_types(session, input_types=["Posts"])
+        seed_input_types(session, input_types=INPUT_TYPES)
+    
+        # Select input types
+        name_col = inspect(InputType).columns["name"]
+        input_types = session.exec(
+            select(InputType).where(name_col.in_(INPUT_TYPES))
+        ).all()
 
         # Download inputs
         ids = download_data(
             session,
-            input_types=["Posts"],
+            input_types=input_types,
             downloader=CustomDownloader,
         )
 
@@ -49,9 +58,15 @@ if __name__ == "__main__":
         classify_inputs(ids, PROMPT_TEMPLATE, ClassificationResponse, session)
 
         # Print summary statistics
-        print_summary_statistics(session, numeric_field="sentiment")
+        print_summary_statistics(
+            session, numeric_field="sentiment", breakpoints=5
+        )
 
         # Export findings to CSV
-        export_responses(session, "responses.csv", numeric_field="sentiment")
+        export_responses(
+            session,
+            "responses.csv",
+            input_fields=["id", "date", "input_type", "title", "body"]
+        )
 
     engine.dispose()

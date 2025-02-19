@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from pytest import CaptureFixture
-from typing import Sequence
 from sqlmodel import Session
 from llm_classifier.summarizer import (
     format_stats_summary,
@@ -17,36 +16,26 @@ def test_format_stats_summary() -> None:
     # Test with normal data
     scores = [1, 2, 3, 4, 5]
     result = format_stats_summary(scores)
-    assert "Total Filings Processed: 5" in result
-    assert "Mean Score: 3.00" in result
-    assert "Median Score: 3" in result
+    assert "Total Inputs Processed: 5" in result
+    assert "Mean: 3.00" in result
+    assert "Median: 3" in result
     assert "Standard Deviation: 1.58" in result
 
     # Test with empty list
-    assert format_stats_summary([]) == "No processed filings found."
+    assert format_stats_summary([]) == "No processed inputs found."
 
     # Test with single value (where std dev isn't possible)
     result = format_stats_summary([5])
     assert "N/A (need more than one value)" in result
 
 
-def test_format_stats_summary() -> None:
-    """Test score distribution formatting."""
-    scores = [1, 1, 2, 3, 3, 3, 4]
-    result = format_stats_summary(scores)
-    assert "Score 1:" in result
-    assert "(2 filings, 28.6%)" in result
-    assert result.count("\n") == 9
-
-
 def test_print_summary_statistics(test_session_with_sample_data: Session, capsys: CaptureFixture) -> None:
     """Test the print_summary_statistics function captures correct output."""
-    print_summary_statistics(test_session_with_sample_data, score_field="score")
+    print_summary_statistics(test_session_with_sample_data, numeric_field="score")
     captured = capsys.readouterr()
 
     assert "Summary Statistics:" in captured.out
-    assert "Total Filings Processed: 2" in captured.out  # Expect 2 filings from today's date
-    assert "Score Distribution:" in captured.out
+    assert "Total Inputs Processed: 4" in captured.out
 
 
 def test_get_exportable_fields() -> None:
@@ -65,7 +54,7 @@ def test_export_responses(test_session_with_sample_data: Session, tmp_path: Path
     export_responses(
         test_session_with_sample_data,
         str(output_file),
-        where_clauses=[ClassificationResponse.score >= 7],
+        where_clauses=[ClassificationResponse.score >= 7], # type: ignore
         input_fields=["extra_field"]  # Use fields that exist in the mock model
     )
 
@@ -92,6 +81,11 @@ def test_export_responses(test_session_with_sample_data: Session, tmp_path: Path
 def test_export_responses_no_results(test_session_with_sample_data: Session, tmp_path: Path) -> None:
     """Test exporting when no results meet the criteria."""
     output_file = tmp_path / "test_output.csv"
-    export_responses(test_session_with_sample_data, str(output_file), where_clauses=[ClassificationResponse.score >= 10], input_fields=["extra_field"])
+    export_responses(
+        test_session_with_sample_data,
+        str(output_file),
+        where_clauses=[ClassificationResponse.score >= 10], # type: ignore
+        input_fields=["extra_field"]
+    )
 
     assert not output_file.exists()

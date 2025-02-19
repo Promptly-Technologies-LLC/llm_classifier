@@ -22,7 +22,7 @@ import tempfile
 from unittest.mock import patch
 from typing import Generator, List
 from datetime import datetime, timedelta
-from sqlmodel import Session, Field, SQLModel
+from sqlmodel import Session, Field, SQLModel, select
 from sqlalchemy.engine import Engine
 
 with patch("llm_classifier.prompt.Input", new=Input):
@@ -64,6 +64,13 @@ def test_session(test_engine: Engine) -> Generator[Session, None, None]:
     """Fixture to create a session for testing."""
     with Session(test_engine) as session:
         seed_input_types(session, input_types=["8-K", "10-K"])
+        # Delete all records from the database
+        inputs = session.exec(select(ClassificationInput)).all()
+        for inp in inputs:
+            session.delete(inp)
+        responses = session.exec(select(ClassificationResponse)).all()
+        for resp in responses:
+            session.delete(resp)
         yield session
 
 
@@ -76,22 +83,26 @@ def sample_inputs() -> List[ClassificationInput]:
         ClassificationInput(
             input_text="Test 1",
             date=now,  # Today's date
-            extra_field="extra_value_1"
+            extra_field="extra_value_1",
+            input_type_id=1
         ),
         ClassificationInput(
             input_text="Test 2",
             date=now,  # Today's date
-            extra_field="extra_value_2"
+            extra_field="extra_value_2",
+            input_type_id=1
         ),
         ClassificationInput(
             input_text="Test 3",
             date=yesterday,  # Yesterday's date
-            extra_field="extra_value_3"
+            extra_field="extra_value_3",
+            input_type_id=1
         ),
         ClassificationInput(
             input_text="Test 4",
             date=yesterday,  # Yesterday's date
-            extra_field="extra_value_4"
+            extra_field="extra_value_4",
+            input_type_id=2
         )
     ]
 

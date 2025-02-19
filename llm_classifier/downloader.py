@@ -22,7 +22,7 @@ class Downloader(Protocol):
         return []
 
     @classmethod
-    def download_record(cls, record_id: Any) -> Optional[ClassificationInput]:
+    def download_record(cls, record_id: Any, input_type: InputType) -> Optional[ClassificationInput]:
         """Override this for list-based APIs that need per-record detail calls"""
         return None
 
@@ -40,12 +40,15 @@ def download_data(
     """
     ids: list[int] = []
     for input_type in input_types:
-        # Try bulk download first, fall back to per-record fetching
-        records: list[ClassificationInput | Any]
-        if downloader.get_records != Downloader.get_records:
+        # Use bulk download if the downloader defines its own get_records method
+        if "get_records" in downloader.__dict__:
             records = downloader.get_records(input_type)
+            assert isinstance(records, list)
+            assert all(isinstance(record, ClassificationInput) for record in records)
         else:
-            records = [id for id in downloader.get_record_ids(input_type)]
+            records = downloader.get_record_ids(input_type)
+            assert isinstance(records, list)
+            assert all(isinstance(record, int) for record in records)
 
         for record in records:
             try:
@@ -53,13 +56,14 @@ def download_data(
                 if isinstance(record, ClassificationInput):
                     downloaded_data = record
                 else:
-                    downloaded_data = downloader.download_record(record)
+                    downloaded_data = downloader.download_record(record, input_type)
 
                 if downloaded_data is None:
                     continue
 
                 session.add(downloaded_data)
                 session.commit()
+                assert downloaded_data.id
                 ids.append(downloaded_data.id)
             except Exception as e:
                 print(f"Error processing record: {e}")

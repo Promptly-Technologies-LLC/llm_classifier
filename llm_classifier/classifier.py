@@ -61,10 +61,13 @@ async def classify_text(prompt: str, model_class: Type[T]) -> T | None:
 
 async def process_single_input(input_id: int, prompt_template: str, model_class: Type[T], session: Session) -> None:
     """Process and persist classification for a single input"""
-    input: ClassificationInput = session.exec(
+    input: ClassificationInput | None = session.exec(
         select(ClassificationInput)
         .where(ClassificationInput.id == input_id)
     ).first()
+
+    if not input:
+        raise ValueError(f"Input with id {input_id} not found")
 
     dynamic_placeholders = get_placeholders(prompt_template, type(input))
     format_args = {placeholder: getattr(input, placeholder) for placeholder in dynamic_placeholders}
@@ -87,9 +90,12 @@ async def process_single_input(input_id: int, prompt_template: str, model_class:
 
 def classify_inputs(input_ids: Sequence[int], prompt_template: str, model_class: Type[T], session: Session) -> None:
     """Classify a list of inputs, processing and persisting one at a time"""    
-    async def process_all():
+    async def process_all() -> None:
         for input_id in input_ids:
-            await process_single_input(input_id, prompt_template, model_class, session)
+            try:
+                await process_single_input(input_id, prompt_template, model_class, session)
+            except Exception as e:
+                print(f"Error processing input {input_id}: {e}")
     
     asyncio.run(process_all())
 
