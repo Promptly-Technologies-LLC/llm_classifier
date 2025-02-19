@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache
+.mypy_cache
+.cache
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+
+# SQLite database
+*.db
+
+# CSV output
+*.csv
+
+# Cursor chats
+.specstory
+.cursorrules
+
+# Action plan
+action_plan.md
+
+# Cache
+.cache

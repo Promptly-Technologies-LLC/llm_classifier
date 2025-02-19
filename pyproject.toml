@@ -1,0 +1,41 @@
+[project]
+name = "llm_classifier"
+version = "0.1.0"
+description = "Classify data at scale with LLMs"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "asyncio>=3.4.3",
+    "litellm>=1.57.5",
+    "nest-asyncio>=1.6.0",
+    "python-dotenv>=1.0.1",
+    "tenacity>=9.0.0",
+    "sqlmodel>=0.0.22",
+    "types-requests>=2.32.0.20241016",
+    "responses>=0.25.6",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "pytest-asyncio>=0.25.2",
+    "pytest>=8.3.4",
+    "pandas-stubs>=2.2.3.241126",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+packages = ["llm_classifier", "tests"]
