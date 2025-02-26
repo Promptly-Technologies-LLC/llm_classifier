@@ -19,7 +19,7 @@ if __name__ == "__main__":
     class CustomDownloader(Downloader):
         """Define a custom download implementation by overriding either the
         `get_records` method (bulk download strategy) or the `get_record_ids`
-        and `download_record` methods (per-record download strategy) of the
+        and `get_record` methods (per-record download strategy) of the
         `Downloader` class (see `downloader.py`)."""
         @classmethod
         @override

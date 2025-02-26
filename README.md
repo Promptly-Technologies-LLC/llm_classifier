@@ -112,7 +112,7 @@ class CustomDownloader(Downloader):
             body=item["content"],
             title=item["title"],
             author=item["author"],
-            input_type=input_type
+            input_type_id=input_type.id
         ) for item in response.json()]
 ```
 
@@ -127,13 +127,13 @@ class CustomDownloader(Downloader):
 
     @classmethod
     @override 
-    def download_record(cls, record_id: int) -> ClassificationInput:
+    def get_record(cls, record_id: int) -> ClassificationInput:
         item = requests.get(f'https://api.example.com/items/{record_id}').json()
         return ClassificationInput(
             body=item["content"],
             title=item["title"],
             author=item["author"],
-            input_type=input_type
+            input_type_id=input_type.id
         )
 ```
 

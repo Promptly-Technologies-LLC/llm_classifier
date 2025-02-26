@@ -42,7 +42,7 @@ def test_list_downloader(test_session: Session) -> None:
             return [1, 2, 3] if input_type.id == 1 else []
         
         @classmethod
-        def download_record(cls, record_id: Any, input_type: InputType) -> ClassificationInput | None:
+        def get_record(cls, record_id: Any, input_type: InputType) -> ClassificationInput | None:
             return ClassificationInput(
                 input_text=f"Item {record_id}",
                 extra_field="test",
@@ -66,7 +66,7 @@ def test_mixed_failure_handling(test_session: Session) -> None:
             return [1, 2, 3]
         
         @classmethod
-        def download_record(cls, record_id: Any, input_type: InputType) -> ClassificationInput | None:
+        def get_record(cls, record_id: Any, input_type: InputType) -> ClassificationInput | None:
             if record_id == 2:  # Simulate failure
                 raise ValueError("Test error")
             return ClassificationInput(

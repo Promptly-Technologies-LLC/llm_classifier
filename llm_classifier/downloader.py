@@ -22,7 +22,7 @@ class Downloader(Protocol):
         return []
 
     @classmethod
-    def download_record(cls, record_id: Any, input_type: InputType) -> Optional[ClassificationInput]:
+    def get_record(cls, record_id: Any, input_type: InputType) -> Optional[ClassificationInput]:
         """Override this for list-based APIs that need per-record detail calls"""
         return None
 
@@ -52,7 +52,7 @@ def download_data(
                 if isinstance(record, ClassificationInput):
                     downloaded_data = record
                 else:
-                    downloaded_data = downloader.download_record(record, input_type)
+                    downloaded_data = downloader.get_record(record, input_type)
 
                 if downloaded_data is None:
                     continue
