@@ -1,5 +1,7 @@
 # main.py
 
+import asyncio
+
 if __name__ == "__main__":
     import os
     from dotenv import load_dotenv
@@ -32,41 +34,42 @@ if __name__ == "__main__":
                 input_type_id=input_type.id,
             ) for record in response.json()]
 
-    # Initialize database
-    engine = init_database(os.getenv("DB_PATH", "data.db"))
-
-    with Session(engine) as session:
-        INPUT_TYPES = ["Posts"]
+    async def main() -> None:
+        # Initialize database
+        engine = init_database(os.getenv("DB_PATH", "data.db"))
+        with Session(engine) as session:
+            INPUT_TYPES = ["Posts"]
+            
+            # Seed input types
+            seed_input_types(session, input_types=INPUT_TYPES)
         
-        # Seed input types
-        seed_input_types(session, input_types=INPUT_TYPES)
-    
-        # Select input types
-        name_col = inspect(InputType).columns["name"]
-        input_types = session.exec(
-            select(InputType).where(name_col.in_(INPUT_TYPES))
-        ).all()
+            # Select input types
+            name_col = inspect(InputType).columns["name"]
+            input_types = session.exec(
+                select(InputType).where(name_col.in_(INPUT_TYPES))
+            ).all()
 
-        # Download inputs
-        ids = download_data(
-            session,
-            input_types=input_types,
-            downloader=CustomDownloader,
-        )
+            # Download inputs
+            ids = download_data(
+                session,
+                input_types=input_types,
+                downloader=CustomDownloader,
+            )
 
-        # Classify inputs
-        classify_inputs(ids, PROMPT_TEMPLATE, ClassificationResponse, session)
+            # Classify inputs
+            await classify_inputs(ids, PROMPT_TEMPLATE, ClassificationResponse, session)
 
-        # Print summary statistics
-        print_summary_statistics(
-            session, numeric_field="sentiment", breakpoints=5
-        )
+            # Print summary statistics
+            print_summary_statistics(
+                session, numeric_field="sentiment", breakpoints=5
+            )
 
-        # Export findings to CSV
-        export_responses(
-            session,
-            "responses.csv",
-            input_fields=["id", "processed_date", "input_type", "title", "body"]
-        )
+            # Export findings to CSV
+            export_responses(
+                session,
+                "responses.csv",
+                input_fields=["id", "processed_date", "input_type", "title", "body"]
+            )
+        engine.dispose()
 
-    engine.dispose()
+    asyncio.run(main())

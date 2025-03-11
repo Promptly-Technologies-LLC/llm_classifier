@@ -45,28 +45,23 @@ def should_retry_error(exception: BaseException) -> bool:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10)
 )
-async def classify_text(prompt: str, model_class: Type[T], media_data: Optional[str] = None) -> T | None:
+async def classify_text(prompt: str, model_class: Type[T], media_data: Optional[list[str]] = None) -> T | None:
     """Classify a single text using the LLM with retry logic. Optionally includes media."""
     try:
         async with asyncio.Semaphore(get_concurrency_limit()):
             # Prepare messages based on whether media is included
-            if media_data:
-                # Create multimodal message format
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": media_data}
-                            }
-                        ]
-                    }
-                ]
+            if media_data and len(media_data) > 0:
+                # Create multimodal message format with content list
+                content = [{"type": "text", "text": prompt}]
+                
+                # Add each media item as an image_url entry
+                for media_item in media_data:
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": media_item}
+                    })
+                
+                messages = [{"role": "user", "content": content}]
             else:
                 # Text-only message format
                 messages = [{"role": "user", "content": prompt}]
@@ -96,14 +91,18 @@ async def process_single_input(input_id: int, prompt_template: str, model_class:
     format_args = {placeholder: getattr(input, placeholder) for placeholder in dynamic_placeholders}
     current_prompt = prompt_template.format(**format_args)
     
-    # Check if the input has a media_blob field and handle it
-    media_data = None
-    if hasattr(input, 'media_blob') and input.media_blob:
-        # Encode the media blob directly to base64
-        media_data = f"data:{mimetypes.guess_type(input.media_blob)[0]};base64,{base64.b64encode(input.media_blob).decode('utf-8')}"
+    # Find all bytes fields in the input and encode them as base64
+    media_data = []
+    for field_name, field_value in input.__dict__.items():
+        if isinstance(field_value, bytes):
+            # Guess the MIME type and encode to base64
+            mime_type = mimetypes.guess_type(field_name)[0] or 'application/octet-stream'
+            encoded_data = f"data:{mime_type};base64,{base64.b64encode(field_value).decode('utf-8')}"
+            media_data.append(encoded_data)
     
     try:
-        result = await classify_text(current_prompt, model_class, media_data)
+        # Pass None if no media data, otherwise pass the list of encoded media
+        result = await classify_text(current_prompt, model_class, media_data if media_data else None)
         
         if result:
             existing_input = session.exec(
@@ -128,6 +127,6 @@ def classify_inputs(input_ids: Sequence[int], prompt_template: str, model_class:
                 await process_single_input(input_id, prompt_template, model_class, session)
             except Exception as e:
                 print(f"Error processing input {input_id}: {e}")
-    
+
     asyncio.run(process_all())
 
