@@ -3,24 +3,23 @@
 from typing import Optional
 from sqlmodel import SQLModel
 
-# --- Data models ---
+# --- Deprecated: Static Data models and Prompt Template ---
+# These are kept for legacy support only. For dynamic, user-defined models and prompts,
+# see the logic in main.py.
 
 class Input(SQLModel, table=False):
-    """Defines additional fields to include in the input table besides the
-    default id and processed_date fields."""
+    """[DEPRECATED] Use DynamicModel and related logic for user-defined input models."""
     title: str
     body: str
     user_id: Optional[int] = None
     post_id: Optional[int] = None
 
 class Response(SQLModel, table=False):
-    """Defines additional fields to include in the response table besides the
-    default id field."""
+    """[DEPRECATED] Use dynamic response handling for user-defined models."""
     sentiment: int
     reason: str
 
-# --- Prompt template ---
-
+# [DEPRECATED] Use dynamic prompt generation in main.py for user-defined models.
 PROMPT_TEMPLATE = """
 Analyze the following post and rate the sentiment from 1 to 5, where 1 is negative, 3 is neutral, and 5 is positive.
 
@@ -47,3 +46,5 @@ Title:
 Post:
 {body}
 """
+
+# For dynamic prompt generation, see main.py and the DynamicModel logic.

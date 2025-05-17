@@ -39,6 +39,32 @@ class ClassificationResponse(Response, table=True):
         back_populates="classification_response"
     )
 
+# --- EAV Models for Dynamic User-Defined Input Models ---
+
+class DynamicModel(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(..., unique=True, index=True)
+    description: Optional[str] = None
+    fields: List["DynamicField"] = Relationship(back_populates="model")
+    values: List["DynamicValue"] = Relationship(back_populates="model")
+
+class DynamicField(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    model_id: int = Field(foreign_key="dynamicmodel.id")
+    field_name: str
+    field_type: str  # e.g., 'string', 'integer', etc.
+    model: DynamicModel = Relationship(back_populates="fields")
+    values: List["DynamicValue"] = Relationship(back_populates="field")
+
+class DynamicValue(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    model_id: int = Field(foreign_key="dynamicmodel.id")
+    field_id: int = Field(foreign_key="dynamicfield.id")
+    value: str  # Store as string, cast as needed in code
+    user_id: Optional[int] = None
+    model: DynamicModel = Relationship(back_populates="values")
+    field: DynamicField = Relationship(back_populates="values")
+
 # --- Database initialization ---
 
 def init_database(db_path: str) -> Engine:
