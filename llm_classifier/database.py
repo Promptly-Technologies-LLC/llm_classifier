@@ -1,6 +1,6 @@
 # database.py
 
-from typing import Optional, List
+from typing import Optional, List, Sequence
 from sqlmodel import SQLModel, create_engine, Field, Relationship, Session, select
 from sqlalchemy.engine import Engine
 from datetime import datetime, UTC, date
@@ -76,13 +76,13 @@ class DynamicPrompt(SQLModel, table=True):
 
 # --- Helper methods for dynamic models ---
 
-def get_dynamic_model_fields(session, model_id):
+def get_dynamic_model_fields(session: Session, model_id: int) -> Sequence[DynamicField]:
     """Fetch fields for a given DynamicModel."""
     return session.exec(
         select(DynamicField).where(DynamicField.model_id == model_id)
     ).all()
 
-def collect_dynamic_input(fields):
+def collect_dynamic_input(fields: Sequence[DynamicField]) -> dict[str, str]:
     """Prompt user for input for each field (console input for demo)."""
     input_data = {}
     for field in fields:
@@ -90,13 +90,13 @@ def collect_dynamic_input(fields):
         input_data[field.field_name] = value
     return input_data
 
-def store_dynamic_input(session, model_id, user_id, input_data):
+def store_dynamic_input(session: Session, model_id: int, user_id: int, input_data: dict[str, str]) -> None:
     """Store user input as DynamicValue entries."""
     fields = get_dynamic_model_fields(session, model_id)
     field_map = {f.field_name: f for f in fields}
     for name, value in input_data.items():
         field = field_map.get(name)
-        if field:
+        if field and field.id:
             dv = DynamicValue(
                 model_id=model_id,
                 field_id=field.id,
@@ -106,7 +106,7 @@ def store_dynamic_input(session, model_id, user_id, input_data):
             session.add(dv)
     session.commit()
 
-def build_dynamic_prompt(model, fields, values):
+def build_dynamic_prompt(model: DynamicModel, fields: Sequence[DynamicField], values: dict[str, str]) -> str:
     """Build a prompt template dynamically from fields and values."""
     prompt = f"Input for model: {model.name}\n"
     for field in fields:

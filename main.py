@@ -82,17 +82,3 @@ if __name__ == "__main__":
 
     asyncio.run(main())
 
-    # --- Example usage for dynamic models (commented out for demo) ---
-    # with Session(engine) as session:
-    #     # 1. Pick a dynamic model (replace 1 with your model's id)
-    #     model_id = 1
-    #     user_id = 123  # Replace with actual user id
-    #     model = session.get(DynamicModel, model_id)
-    #     fields = get_dynamic_model_fields(session, model_id)
-    #     # 2. Collect user input for fields
-    #     input_data = collect_dynamic_input(fields)
-    #     # 3. Store input in DB
-    #     store_dynamic_input(session, model_id, user_id, input_data)
-    #     # 4. Build prompt for LLM
-    #     prompt = build_dynamic_prompt(model, fields, input_data)
-    #     print(prompt)
