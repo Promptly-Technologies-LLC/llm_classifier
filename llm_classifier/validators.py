@@ -46,12 +46,13 @@ def get_placeholders(
     if invalid_placeholders:
         raise TemplateError(invalid_placeholders[0], model)
     
-    # Get required fields (excluding SQLModel internals)
+    # Get required fields (excluding SQLModel internals and bytes type fields)
     required_fields = [
         name
         for name, field in model_fields.items()
         if (field.is_required() and 
-            name not in ('id', 'input_id', 'classification_input'))
+            name not in ('id', 'input_id', 'classification_input') and
+            field.annotation != bytes)
     ]
 
     # Check required fields are in template

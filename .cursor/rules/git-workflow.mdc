@@ -1,0 +1,15 @@
+---
+description: Git branching workflow and Github project management from the CLI
+globs: 
+alwaysApply: false
+---
+This project uses Github project management. Use the `gh` CLI to review and work on issues:
+
+- List open issues: `gh issue list`
+- View issue details: `gh issue view <ISSUE_NUMBER>`
+- Create a branch to work on an issue: `gh issue develop <ISSUE_NUMBER>`
+- Switch to the issue branch: `git checkout <BRANCH_NAME>`
+- Stage and commit work: `git add .`, `git commit -m "explanation of change"`, `git push`
+- Open a PR: `gh pr create -t "Explanation of change"`
+
+As much as possible, a PR should be scoped to a single issue. If you want to make changes outside of the issue scope, open a new issue and commit them to a new issue branch.

@@ -3,7 +3,7 @@
 from typing import Optional, List
 from sqlmodel import SQLModel, create_engine, Field, Relationship, Session, select
 from sqlalchemy.engine import Engine
-from datetime import datetime, UTC
+from datetime import datetime, UTC, date
 
 from llm_classifier.prompt import Input, Response
 
@@ -18,7 +18,7 @@ class InputType(SQLModel, table=True):
 # Input data model
 class ClassificationInput(Input, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    processed_date: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    processed_date: date = Field(default_factory=lambda: datetime.now(UTC))
 
     input_type_id: Optional[int] = Field(default=None, foreign_key="inputtype.id")
 
