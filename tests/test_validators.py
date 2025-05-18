@@ -30,6 +30,15 @@ def model_with_nonrequired_fields() -> type[SQLModel]:
     return ModelWithNonRequiredFields
 
 
+@pytest.fixture
+def model_with_bytes_field() -> type[SQLModel]:
+    class ModelWithBytesField(SQLModel):
+        id: Optional[int] = Field(default=None, primary_key=True)
+        name: str
+        data: bytes
+    return ModelWithBytesField
+
+
 # --- Tests ---
 
 def test_get_json_with_markdown_fence() -> None:
@@ -108,3 +117,24 @@ def test_get_placeholders_with_missing_nonrequired_fields(model_with_nonrequired
     """
     result = get_placeholders(incomplete_prompt, model_with_nonrequired_fields)
     assert result == ['required_field']
+
+
+def test_get_placeholders_excludes_bytes_fields(model_with_bytes_field: type[SQLModel]) -> None:
+    """Test that bytes fields are excluded from required placeholders"""
+    template = "{name}"  # Only includes 'name', not 'data'
+    
+    # Should not raise TemplateError even though 'data' is required
+    placeholders = get_placeholders(template, model_with_bytes_field)
+    
+    assert placeholders == ["name"]
+    assert "data" not in placeholders
+
+
+def test_get_placeholders_requires_non_bytes_fields(model_with_bytes_field: type[SQLModel]) -> None:
+    """Test that non-bytes required fields are still required"""
+    template = "{}"  # Missing required 'name' field
+    
+    with pytest.raises(TemplateError) as exc_info:
+        get_placeholders(template, model_with_bytes_field)
+    
+    assert "name" in str(exc_info.value)

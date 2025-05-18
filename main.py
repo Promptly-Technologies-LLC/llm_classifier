@@ -1,5 +1,7 @@
 # main.py
 
+import asyncio
+
 if __name__ == "__main__":
     import os
     from dotenv import load_dotenv
@@ -10,7 +12,7 @@ if __name__ == "__main__":
     from sqlalchemy import inspect
     from llm_classifier.database import init_database, seed_input_types, ClassificationInput, ClassificationResponse, InputType
     from llm_classifier.downloader import download_data, Downloader
-    from llm_classifier.classifier import classify_inputs
+    from llm_classifier.classifier import process_single_input
     from llm_classifier.prompt import PROMPT_TEMPLATE
     from llm_classifier.summarizer import print_summary_statistics, export_responses
 
@@ -32,41 +34,46 @@ if __name__ == "__main__":
                 input_type_id=input_type.id,
             ) for record in response.json()]
 
-    # Initialize database
-    engine = init_database(os.getenv("DB_PATH", "data.db"))
-
-    with Session(engine) as session:
-        INPUT_TYPES = ["Posts"]
+    async def main() -> None:
+        # Initialize database
+        engine = init_database(os.getenv("DB_PATH", "data.db"))
+        with Session(engine) as session:
+            INPUT_TYPES = ["Posts"]
+            
+            # Seed input types
+            seed_input_types(session, input_types=INPUT_TYPES)
         
-        # Seed input types
-        seed_input_types(session, input_types=INPUT_TYPES)
-    
-        # Select input types
-        name_col = inspect(InputType).columns["name"]
-        input_types = session.exec(
-            select(InputType).where(name_col.in_(INPUT_TYPES))
-        ).all()
+            # Select input types
+            name_col = inspect(InputType).columns["name"]
+            input_types = session.exec(
+                select(InputType).where(name_col.in_(INPUT_TYPES))
+            ).all()
 
-        # Download inputs
-        ids = download_data(
-            session,
-            input_types=input_types,
-            downloader=CustomDownloader,
-        )
+            # Download inputs
+            ids = download_data(
+                session,
+                input_types=input_types,
+                downloader=CustomDownloader,
+            )
 
-        # Classify inputs
-        classify_inputs(ids, PROMPT_TEMPLATE, ClassificationResponse, session)
+            # Classify inputs concurrently
+            results = await asyncio.gather(*[process_single_input(input_id, PROMPT_TEMPLATE, ClassificationResponse, session) for input_id in ids])
+            
+            # Count successful classifications
+            classified_count = sum(1 for result in results if result)
+            print(f"Successfully classified {classified_count} inputs")
 
-        # Print summary statistics
-        print_summary_statistics(
-            session, numeric_field="sentiment", breakpoints=5
-        )
+            # Print summary statistics
+            print_summary_statistics(
+                session, numeric_field="sentiment", breakpoints=5
+            )
 
-        # Export findings to CSV
-        export_responses(
-            session,
-            "responses.csv",
-            input_fields=["id", "processed_date", "input_type", "title", "body"]
-        )
+            # Export findings to CSV
+            export_responses(
+                session,
+                "responses.csv",
+                input_fields=["id", "processed_date", "input_type", "title", "body"]
+            )
+        engine.dispose()
 
-    engine.dispose()
+    asyncio.run(main())

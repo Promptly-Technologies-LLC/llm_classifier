@@ -3,12 +3,14 @@
 # --- Patch prompt models for testing ---
 
 from sqlmodel import SQLModel, Field
+from typing import Optional
 import llm_classifier.prompt as prompt
 
 # Patch Input to add an extra field that the prompt template needs
 class Input(SQLModel):
     input_text: str
-    extra_field: str = Field(default="extra")  # Additional field required for tests
+    extra_field: str = Field(default="extra")
+    bytes_field: Optional[bytes] = Field(default=None)
 
 # Patch Response and replace investability with score
 class Response(SQLModel):
@@ -36,6 +38,8 @@ def mock_prompt_template() -> str:
         "Analyze the following text and return a JSON object with investment insights:\n"
         "{input_text}\n"
         "Extra field: {extra_field}\n"
+        "Return your response as JSON with a string 'most_investable_insight' field, an "
+        "integer 'score' field, and a string 'reason_its_investable' field."
     )
     return MOCK_PROMPT_TEMPLATE
 
