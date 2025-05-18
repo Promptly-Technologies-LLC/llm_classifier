@@ -5,9 +5,11 @@ from dotenv import load_dotenv
 import pytest
 import base64
 import io
+import asyncio
 from PIL import Image
+from pydantic import BaseModel
 from sqlmodel import Session, select
-from llm_classifier.classifier import classify_text, classify_inputs
+from llm_classifier.classifier import classify_input, process_single_input
 from llm_classifier.database import ClassificationInput, ClassificationResponse
 
 load_dotenv(override=True)
@@ -25,8 +27,8 @@ def sample_image_bytes() -> bytes:
 def sample_input_with_image(test_session: Session, sample_image_bytes: bytes) -> ClassificationInput:
     """Create a sample input with an image attached."""
     input_with_image = ClassificationInput(
-        input_text="Test input with image",
-        extra_field="test_extra",
+        input_text="Google's revenue is up 10% this quarter.",
+        extra_field="Profitability increased by 5%",
         bytes_field=sample_image_bytes
     )
     test_session.add(input_with_image)
@@ -38,8 +40,8 @@ def sample_input_with_image(test_session: Session, sample_image_bytes: bytes) ->
 def sample_input_without_media(test_session: Session) -> ClassificationInput:
     """Create a sample input without media."""
     input_without_media = ClassificationInput(
-        input_text="Test input without media",
-        extra_field="test_extra"
+        input_text="Apple's revenue is up 15% this quarter.",
+        extra_field="Profitability increased by 10%"
     )
     test_session.add(input_without_media)
     test_session.commit()
@@ -48,31 +50,36 @@ def sample_input_without_media(test_session: Session) -> ClassificationInput:
 
 @pytest.mark.live
 @pytest.mark.asyncio
-async def test_classify_text_without_media() -> None:
-    """Test the classify_text function without media data."""
+async def test_classify_input_without_media() -> None:
+    """Test the classify_input function without media data."""
     # Test prompt that mentions the image
-    test_prompt = "Analyze this image and provide insights. The image is a 1-pixel red square."
+    test_prompt = (
+        "Classify the sentiment of this emoji on a scale from 1 (negative) to 5 (positive): :)\n"
+        "Return your response as JSON with a string 'reason' field and an integer 'sentiment' field."
+    )
+    class ResponseModel(BaseModel):
+        reason: str
+        sentiment: int
 
-    # Call classify_text with the media data
-    result = await classify_text(test_prompt, ClassificationResponse, None)
+    # Call classify_input with the media data
+    result = await classify_input(test_prompt, ResponseModel, None)
 
     # Verify we got a valid response
     assert result is not None
-    assert isinstance(result, ClassificationResponse)
-    assert result.most_investable_insight
-    assert result.reason_its_investable
-    assert isinstance(result.score, int)
+    assert isinstance(result, ResponseModel)
+    assert result.reason
+    assert result.sentiment
 
 
 @pytest.mark.live
-def test_classify_inputs_without_media(test_session: Session, sample_input_without_media: ClassificationInput, mock_prompt_template: str) -> None:
-    """Test the classify_inputs function with an input without media."""
+@pytest.mark.asyncio
+async def test_gather_classified_inputs_without_media(test_session: Session, sample_input_without_media: ClassificationInput, mock_prompt_template: str) -> None:
+    """Test that process_single_input function works with `asyncio.gather` an input without media."""
     # Get the ID of the sample input
     input_id = sample_input_without_media.id
     assert input_id is not None
 
-    # Call classify_inputs with the input ID
-    classify_inputs([input_id], mock_prompt_template, ClassificationResponse, test_session)
+    await asyncio.gather(*[process_single_input(id, mock_prompt_template, ClassificationResponse, test_session) for id in [input_id]])
 
     # Verify the result
     result = test_session.exec(
@@ -89,8 +96,8 @@ def test_classify_inputs_without_media(test_session: Session, sample_input_witho
 
 @pytest.mark.live
 @pytest.mark.asyncio
-async def test_classify_text_with_media() -> None:
-    """Test the classify_text function with media data."""
+async def test_classify_input_with_media() -> None:
+    """Test the classify_input function with media data."""
     # Create a simple test image
     img = Image.new('RGB', (1, 1), color='red')
     img_byte_arr = io.BytesIO()
@@ -101,27 +108,36 @@ async def test_classify_text_with_media() -> None:
     encoded_image = f"data:image/png;base64,{base64.b64encode(img_bytes).decode('utf-8')}"
 
     # Test prompt that mentions the image
-    test_prompt = "Analyze this image and provide insights. The image is a 1-pixel red square."
+    test_prompt = (
+        "Classify the sentiment of this image on a scale from 1 "
+        "(cold) to 5 (hot) based on the color. The image is a "
+        "1-pixel square. Return your response as JSON with a "
+        "string 'reason' field and an integer 'sentiment' field."
+    )
 
-    # Call classify_text with the media data
-    result = await classify_text(test_prompt, ClassificationResponse, [encoded_image])
+    class ResponseModel(BaseModel):
+        reason: str
+        sentiment: int
+
+    # Call classify_input with the media data
+    result = await classify_input(test_prompt, ResponseModel, [encoded_image])
 
     # Verify we got a valid response
     assert result is not None
-    assert isinstance(result, ClassificationResponse)
-    assert result.most_investable_insight
-    assert result.reason_its_investable
-    assert isinstance(result.score, int)
+    assert isinstance(result, ResponseModel)
+    assert result.reason
+    assert result.sentiment
 
 
 @pytest.mark.live
-def test_classify_inputs_with_media(test_session: Session, sample_input_with_image: ClassificationInput, mock_prompt_template: str) -> None:
-    """Test the classify_inputs function with an input containing media."""
+@pytest.mark.asyncio
+async def test_gather_classified_inputs_with_media(test_session: Session, sample_input_with_image: ClassificationInput, mock_prompt_template: str) -> None:
+    """Test that process_single_input function works with `asyncio.gather` an input with media."""
     # Get the ID of the sample input
     input_id = sample_input_with_image.id
     assert input_id is not None
 
-    classify_inputs([input_id], mock_prompt_template, ClassificationResponse, test_session)
+    await asyncio.gather(*[process_single_input(id, mock_prompt_template, ClassificationResponse, test_session) for id in [input_id]])
 
     # Verify the result
     result = test_session.exec(

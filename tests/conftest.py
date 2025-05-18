@@ -38,6 +38,8 @@ def mock_prompt_template() -> str:
         "Analyze the following text and return a JSON object with investment insights:\n"
         "{input_text}\n"
         "Extra field: {extra_field}\n"
+        "Return your response as JSON with a string 'most_investable_insight' field, an "
+        "integer 'score' field, and a string 'reason_its_investable' field."
     )
     return MOCK_PROMPT_TEMPLATE
 

@@ -12,7 +12,7 @@ if __name__ == "__main__":
     from sqlalchemy import inspect
     from llm_classifier.database import init_database, seed_input_types, ClassificationInput, ClassificationResponse, InputType
     from llm_classifier.downloader import download_data, Downloader
-    from llm_classifier.classifier import classify_inputs
+    from llm_classifier.classifier import process_single_input
     from llm_classifier.prompt import PROMPT_TEMPLATE
     from llm_classifier.summarizer import print_summary_statistics, export_responses
 
@@ -56,8 +56,12 @@ if __name__ == "__main__":
                 downloader=CustomDownloader,
             )
 
-            # Classify inputs
-            await classify_inputs(ids, PROMPT_TEMPLATE, ClassificationResponse, session)
+            # Classify inputs concurrently
+            results = await asyncio.gather(*[process_single_input(input_id, PROMPT_TEMPLATE, ClassificationResponse, session) for input_id in ids])
+            
+            # Count successful classifications
+            classified_count = sum(1 for result in results if result)
+            print(f"Successfully classified {classified_count} inputs")
 
             # Print summary statistics
             print_summary_statistics(

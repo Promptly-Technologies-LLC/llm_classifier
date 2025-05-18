@@ -6,8 +6,9 @@ import asyncio
 import nest_asyncio
 import base64
 import mimetypes
-from typing import Type, TypeVar, Sequence, Optional
-from litellm import acompletion, RateLimitError
+from typing import Type, TypeVar, Optional
+from litellm import acompletion, Choices
+from litellm.files.main import RateLimitError, ModelResponse
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 from sqlmodel import Session, select
@@ -45,14 +46,14 @@ def should_retry_error(exception: BaseException) -> bool:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10)
 )
-async def classify_text(prompt: str, model_class: Type[T], media_data: Optional[list[str]] = None) -> T | None:
+async def classify_input(prompt: str, model_class: Type[T], media_data: Optional[list[str]] = None) -> T | None:
     """Classify a single text using the LLM with retry logic. Optionally includes media."""
     try:
         async with asyncio.Semaphore(get_concurrency_limit()):
             # Prepare messages based on whether media is included
             if media_data and len(media_data) > 0:
                 # Create multimodal message format with content list
-                content = [{"type": "text", "text": prompt}]
+                content: list[dict[str, object]] = [{"type": "text", "text": prompt}]
                 
                 # Add each media item as an image_url entry
                 for media_item in media_data:
@@ -67,17 +68,21 @@ async def classify_text(prompt: str, model_class: Type[T], media_data: Optional[
                 messages = [{"role": "user", "content": prompt}]
             
             response = await acompletion(
-                model="gemini/gemini-2.0-flash-exp",
+                model="openrouter/google/gemini-2.5-flash-preview",
                 messages=messages,
                 response_format={"type": "json_object", "response_schema": get_gemini_schema(model_class)}
             )
-        return get_model_from_json(response['choices'][0]['message']['content'], model_class)
+            assert isinstance(response, ModelResponse) and isinstance(response.choices[0], Choices), f"Response is not a ModelResponse: {type(response)}"
+            message_content = response.choices[0].message.content
+            assert isinstance(message_content, str), f"Message content is not a string: {type(message_content)}"
+            return get_model_from_json(message_content, model_class)
+
     except Exception as e:
         print(f"Error during classification: {str(e)}")
         return None
 
 
-async def process_single_input(input_id: int, prompt_template: str, model_class: Type[T], session: Session) -> None:
+async def process_single_input(input_id: int, prompt_template: str, model_class: Type[T], session: Session) -> bool:
     """Process and persist classification for a single input"""
     input: ClassificationInput | None = session.exec(
         select(ClassificationInput)
@@ -102,7 +107,7 @@ async def process_single_input(input_id: int, prompt_template: str, model_class:
     
     try:
         # Pass None if no media data, otherwise pass the list of encoded media
-        result = await classify_text(current_prompt, model_class, media_data if media_data else None)
+        result = await classify_input(current_prompt, model_class, media_data if media_data else None)
         
         if result:
             existing_input = session.exec(
@@ -116,17 +121,9 @@ async def process_single_input(input_id: int, prompt_template: str, model_class:
                 )
                 session.add(input)
                 session.commit()
+            return True
+        return False
     except Exception as e:
         print(f"Error processing input {input_id}: {e}")
-
-def classify_inputs(input_ids: Sequence[int], prompt_template: str, model_class: Type[T], session: Session) -> None:
-    """Classify a list of inputs, processing and persisting one at a time"""    
-    async def process_all() -> None:
-        for input_id in input_ids:
-            try:
-                await process_single_input(input_id, prompt_template, model_class, session)
-            except Exception as e:
-                print(f"Error processing input {input_id}: {e}")
-
-    asyncio.run(process_all())
+        return False
 
