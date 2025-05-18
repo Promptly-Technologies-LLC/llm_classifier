@@ -8,7 +8,11 @@ if __name__ == "__main__":
     from typing import override
     from sqlmodel import Session, select
     from sqlalchemy import inspect
-    from llm_classifier.database import init_database, seed_input_types, ClassificationInput, ClassificationResponse, InputType, DynamicModel, DynamicField, DynamicValue
+    from llm_classifier.database import (
+        init_database, seed_input_types, ClassificationInput, ClassificationResponse, InputType,
+        DynamicModel, DynamicField, DynamicValue,
+        get_dynamic_model_fields, collect_dynamic_input, store_dynamic_input, build_dynamic_prompt
+    )
     from llm_classifier.downloader import download_data, Downloader
     from llm_classifier.classifier import classify_inputs
     from llm_classifier.prompt import PROMPT_TEMPLATE
@@ -70,44 +74,6 @@ if __name__ == "__main__":
         )
 
     engine.dispose()
-
-    def get_dynamic_model_fields(session, model_id):
-        """Fetch fields for a given DynamicModel."""
-        return session.exec(
-            select(DynamicField).where(DynamicField.model_id == model_id)
-        ).all()
-
-    def collect_dynamic_input(fields):
-        """Prompt user for input for each field (console input for demo)."""
-        input_data = {}
-        for field in fields:
-            value = input(f"Enter value for {field.field_name} ({field.field_type}): ")
-            input_data[field.field_name] = value
-        return input_data
-
-    def store_dynamic_input(session, model_id, user_id, input_data):
-        """Store user input as DynamicValue entries."""
-        fields = get_dynamic_model_fields(session, model_id)
-        field_map = {f.field_name: f for f in fields}
-        for name, value in input_data.items():
-            field = field_map.get(name)
-            if field:
-                dv = DynamicValue(
-                    model_id=model_id,
-                    field_id=field.id,
-                    value=str(value),
-                    user_id=user_id
-                )
-                session.add(dv)
-        session.commit()
-
-    def build_dynamic_prompt(model, fields, values):
-        """Build a prompt template dynamically from fields and values."""
-        prompt = f"Input for model: {model.name}\n"
-        for field in fields:
-            val = values.get(field.field_name, "")
-            prompt += f"{field.field_name}: {val}\n"
-        return prompt
 
     # --- Example usage for dynamic models (commented out for demo) ---
     # with Session(engine) as session:

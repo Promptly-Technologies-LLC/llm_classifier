@@ -39,60 +39,148 @@ CONCURRENCY_LIMIT=1
 
 3. Implement your custom components in `prompt.py` and `main.py`
 
-## ⚠️ Update: Dynamic User-Defined Models
-
-> **Note:** The framework now supports dynamic, user-defined input models and prompt templates using an Entity-Attribute-Value (EAV) schema. The static `Input` class and `PROMPT_TEMPLATE` in `prompt.py` are **deprecated** and kept for legacy support only. See `main.py` and the `DynamicModel` logic for the new approach.
-
----
-
 ## Customization Guide
 
-### 1. Define Dynamic Data Models (No longer in prompt.py)
+### 1. Define Data Models (`prompt.py`)
 
-Instead of hardcoding your input schema, you can now define new models and fields at runtime. These are stored in the database using the following EAV tables:
-
-- `DynamicModel`: Represents a user-defined model (e.g., "BlogPost", "Tweet").
-- `DynamicField`: Represents a field/attribute of a model (e.g., "title", "body").
-- `DynamicValue`: Stores the actual user input for each field and model instance.
-
-You can add new models and fields by interacting with the database (see `main.py` for example code).
-
-### 2. Dynamic Prompt Template Generation
-
-Prompt templates are now built dynamically at runtime based on the fields of the selected `DynamicModel`. The framework fetches the field names and values from the database and constructs the prompt accordingly. See the functions in `main.py` for details.
-
-**Deprecated:**
 ```python
 class Input(SQLModel, table=False):
-    ...
-PROMPT_TEMPLATE = "..."
+    """Custom fields for your input data"""
+    title: str
+    body: str
+    author: str
+
+class Response(SQLModel, table=False):
+    """Define your classification schema"""
+    key_insight: str
+    severity: int
+    category: str
 ```
-Use the new dynamic system instead.
 
-### 3. Collecting and Storing User Input
+### 2. Create Prompt Template (`prompt.py`)
 
-- The framework will prompt for input for each field of the selected model.
-- Inputs are stored as `DynamicValue` entries in the database.
+Requirements:
 
-### 4. Example Usage in main.py
+- All required `Input` fields must be present as `{placeholder}` variables
+- Include example JSON matching your `Response` model
+- Provide clear formatting and classification instructions
 
-See `main.py` for example functions:
-- Fetching model fields: `get_dynamic_model_fields(session, model_id)`
-- Collecting user input: `collect_dynamic_input(fields)`
-- Storing input: `store_dynamic_input(session, model_id, input_data)`
-- Building a dynamic prompt: `build_dynamic_prompt(model_name, input_data)`
+```python
+PROMPT_TEMPLATE = """
+Analyze this post from {author}:
 
----
+{title}
+{body}
 
-## Example Workflow (Updated)
+Return JSON with:
 
-1. Define new models and fields dynamically (no code changes needed for new input types).
-2. Collect user input for the selected model.
-3. Generate prompts dynamically based on the model's fields.
-4. Process and classify data as before.
+- "key_insight" (most important finding)
+- "severity" (1-10)
+- "category" (most relevant topic)
 
----
+Example:
+{{
+    "key_insight": "Example insight",
+    "severity": 7,
+    "category": "Technology"
+}}
+"""
+```
 
-The rest of the framework (downloader, output processing, etc.) works as before, but now supports arbitrary user-defined input schemas.
+### 3. Configure Input Types (`main.py`)
 
-For legacy support, the static `Input` and `PROMPT_TEMPLATE` remain in `prompt.py` but are deprecated.
+In `main.py`, define the document types to process:
+
+```python
+seed_input_types(session, input_types=["Blogs", "Tweets"])
+```
+
+There must be at least one input type.
+
+### 4. Implement Data Downloader (`main.py`)
+
+Choose a strategy based on your API:
+
+**Bulk Download Approach:**
+```python
+class CustomDownloader(Downloader):
+    @classmethod
+    @override
+    def get_records(cls, input_type: InputType) -> list[ClassificationInput]:
+        response = requests.get('https://api.example.com/data')
+        return [ClassificationInput(
+            body=item["content"],
+            title=item["title"],
+            author=item["author"],
+            input_type_id=input_type.id
+        ) for item in response.json()]
+```
+
+**Per-Record Approach:**
+```python
+class CustomDownloader(Downloader):
+    @classmethod
+    @override
+    def get_record_ids(cls, input_type) -> list[int]:
+        ids = requests.get('https://api.example.com/items/list').json()
+        return ids
+
+    @classmethod
+    @override 
+    def get_record(cls, record_id: int) -> ClassificationInput:
+        item = requests.get(f'https://api.example.com/items/{record_id}').json()
+        return ClassificationInput(
+            body=item["content"],
+            title=item["title"],
+            author=item["author"],
+            input_type_id=input_type.id
+        )
+```
+
+### 5. Customize Output Processing
+
+**Summarization:**
+
+To use `print_summary_statistics`, you must have at least one numeric field in your `Response` model. Otherwise, you should delete or comment out the `print_summary_statistics` call in `main.py`.
+
+```python
+print_summary_statistics(
+    session, 
+    numeric_field="severity",  # Name of your numeric response field
+    breakpoints=4  # Percentile scale breakpoints (e.g., 4 prints quartiles)
+)
+```
+
+**Export Filtering:**
+
+To filter exported responses, you may optionally add a list of SQLAlchemy expressions to the `where_clauses` argument of the `export_responses` function. Each clause should be an expression that filters the responses. In the `input_fields` argument, you should specify any fields from the `Input` model that you want to include with the `Response` data in the exported CSV.
+
+```python
+from sqlalchemy import and_
+
+export_responses(
+    session,
+    "results.csv",
+    where_clauses=[
+        ClassificationResponse.severity >= 7,
+        ClassificationResponse.category == "Security"
+    ],
+    input_fields=["id", "processed_date", "title"]
+)
+```
+
+## Example Workflow
+
+The `prompt.py` and `main.py` files in this repo contain an example implementation of the framework that downloads and processes data from the public [JSONPlaceholder API](https://jsonplaceholder.typicode.com/). To use the framework for your own classification needs, follow these steps:
+
+1. Change the `Input` and `Response` models to match your use case
+2. Create a prompt template with required placeholders
+3. Implement a data downloader for your API
+4. Configure input types in `main.py`
+5. Customize export filters and summary fields
+
+The framework handles:
+
+- Database management
+- Parallel LLM API calls with rate limiting and retries
+- Response parsing and validation

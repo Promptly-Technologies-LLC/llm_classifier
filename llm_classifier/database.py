@@ -47,6 +47,7 @@ class DynamicModel(SQLModel, table=True):
     description: Optional[str] = None
     fields: List["DynamicField"] = Relationship(back_populates="model")
     values: List["DynamicValue"] = Relationship(back_populates="model")
+    prompts: List["DynamicPrompt"] = Relationship(back_populates="model", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 class DynamicField(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -64,6 +65,54 @@ class DynamicValue(SQLModel, table=True):
     user_id: Optional[int] = None
     model: DynamicModel = Relationship(back_populates="values")
     field: DynamicField = Relationship(back_populates="values")
+
+class DynamicPrompt(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    model_id: int = Field(foreign_key="dynamicmodel.id")
+    name: str = Field(..., index=True)
+    template: str  # The prompt template string
+    description: Optional[str] = None
+    model: DynamicModel = Relationship(back_populates="prompts")
+
+# --- Helper methods for dynamic models ---
+
+def get_dynamic_model_fields(session, model_id):
+    """Fetch fields for a given DynamicModel."""
+    return session.exec(
+        select(DynamicField).where(DynamicField.model_id == model_id)
+    ).all()
+
+def collect_dynamic_input(fields):
+    """Prompt user for input for each field (console input for demo)."""
+    input_data = {}
+    for field in fields:
+        value = input(f"Enter value for {field.field_name} ({field.field_type}): ")
+        input_data[field.field_name] = value
+    return input_data
+
+def store_dynamic_input(session, model_id, user_id, input_data):
+    """Store user input as DynamicValue entries."""
+    fields = get_dynamic_model_fields(session, model_id)
+    field_map = {f.field_name: f for f in fields}
+    for name, value in input_data.items():
+        field = field_map.get(name)
+        if field:
+            dv = DynamicValue(
+                model_id=model_id,
+                field_id=field.id,
+                value=str(value),
+                user_id=user_id
+            )
+            session.add(dv)
+    session.commit()
+
+def build_dynamic_prompt(model, fields, values):
+    """Build a prompt template dynamically from fields and values."""
+    prompt = f"Input for model: {model.name}\n"
+    for field in fields:
+        val = values.get(field.field_name, "")
+        prompt += f"{field.field_name}: {val}\n"
+    return prompt
 
 # --- Database initialization ---
 
