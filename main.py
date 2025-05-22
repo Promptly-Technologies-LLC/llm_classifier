@@ -1,6 +1,7 @@
 # main.py
 
 import asyncio
+import logging
 
 if __name__ == "__main__":
     import os
@@ -17,8 +18,7 @@ if __name__ == "__main__":
     )
     from llm_classifier.downloader import download_data, Downloader
     from llm_classifier.classifier import process_single_input
-    from llm_classifier.prompt import PROMPT_TEMPLATE
-    from llm_classifier.summarizer import print_summary_statistics, export_responses
+    from llm_classifier.prompt import INPUT_FIELDS, RESPONSE_FIELDS, PROMPT_TEMPLATE, INPUT_MODEL_NAME, RESPONSE_MODEL_NAME, DynamicPrompt
 
     load_dotenv(override=True)
 
@@ -42,6 +42,78 @@ if __name__ == "__main__":
         # Initialize database
         engine = init_database(os.getenv("DB_PATH", "data.db"))
         with Session(engine) as session:
+            # --- Seed dynamic models, fields, and prompt from prompt.py constants ---
+            # This block creates or updates the database records for user-defined models, fields, and prompt.
+            try:
+                model_name = INPUT_MODEL_NAME
+                # Check if model already exists
+                model = session.exec(select(DynamicModel).where(DynamicModel.name == model_name)).first()
+                if not model:
+                    model = DynamicModel(name=model_name, description="User-defined input model")
+                    session.add(model)
+                    session.commit()
+                    print(f"Created DynamicModel: {model_name}")
+                else:
+                    print(f"DynamicModel '{model_name}' already exists, skipping creation.")
+                # Add input fields if not present
+                for field_name, field_type in INPUT_FIELDS:
+                    exists = session.exec(
+                        select(DynamicField).where(
+                            (DynamicField.model_id == model.id) &
+                            (DynamicField.field_name == field_name)
+                        )
+                    ).first()
+                    if not exists:
+                        session.add(DynamicField(model_id=model.id, field_name=field_name, field_type=field_type))
+                        print(f"  Added field '{field_name}' to model '{model_name}'")
+                    else:
+                        print(f"  Field '{field_name}' already exists in model '{model_name}', skipping.")
+                # Add response fields as a separate model (optional, for completeness)
+                response_model_name = RESPONSE_MODEL_NAME
+                response_model = session.exec(select(DynamicModel).where(DynamicModel.name == response_model_name)).first()
+                if not response_model:
+                    response_model = DynamicModel(name=response_model_name, description="User-defined response model")
+                    session.add(response_model)
+                    session.commit()
+                    print(f"Created DynamicModel: {response_model_name}")
+                else:
+                    print(f"DynamicModel '{response_model_name}' already exists, skipping creation.")
+                for field_name, field_type in RESPONSE_FIELDS:
+                    exists = session.exec(
+                        select(DynamicField).where(
+                            (DynamicField.model_id == response_model.id) &
+                            (DynamicField.field_name == field_name)
+                        )
+                    ).first()
+                    if not exists:
+                        session.add(DynamicField(model_id=response_model.id, field_name=field_name, field_type=field_type))
+                        print(f"  Added field '{field_name}' to model '{response_model_name}'")
+                    else:
+                        print(f"  Field '{field_name}' already exists in model '{response_model_name}', skipping.")
+                # Add prompt if not present
+                prompt_exists = session.exec(
+                    select(DynamicPrompt).where(
+                        (DynamicPrompt.model_id == model.id) &
+                        (DynamicPrompt.template == PROMPT_TEMPLATE)
+                    )
+                ).first()
+                if not prompt_exists:
+                    session.add(DynamicPrompt(
+                        model_id=model.id,
+                        name="User Prompt Template",
+                        template=PROMPT_TEMPLATE,
+                        description="User-defined prompt template."
+                    ))
+                    print(f"Added prompt template for model '{model_name}'")
+                else:
+                    print(f"Prompt template for model '{model_name}' already exists, skipping.")
+                session.commit()
+            except Exception as e:
+                logging.exception(f"Error during seeding dynamic models: {e}")
+            # --- End seeding dynamic models ---
+            #
+            # Note: Running this seeding logic multiple times will not create duplicates.
+            
             INPUT_TYPES = ["Posts"]
             
             # Seed input types
@@ -67,17 +139,17 @@ if __name__ == "__main__":
             classified_count = sum(1 for result in results if result)
             print(f"Successfully classified {classified_count} inputs")
 
-            # Print summary statistics
-            print_summary_statistics(
-                session, numeric_field="sentiment", breakpoints=5
-            )
+        # Print summary statistics
+        print_summary_statistics(
+            session, numeric_field="sentiment", breakpoints=5
+        )
 
-            # Export findings to CSV
-            export_responses(
-                session,
-                "responses.csv",
-                input_fields=["id", "processed_date", "input_type", "title", "body"]
-            )
+        # Export findings to CSV
+        export_responses(
+            session,
+            "responses.csv",
+            input_fields=["id", "processed_date", "input_type", "title", "body"]
+        )
         engine.dispose()
 
     asyncio.run(main())

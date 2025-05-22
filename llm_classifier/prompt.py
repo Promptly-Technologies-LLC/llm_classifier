@@ -1,27 +1,36 @@
 # prompt.py
 
-from typing import Optional
-from sqlmodel import SQLModel
-from llm_classifier.database import DynamicModel, DynamicField, DynamicPrompt
-from sqlmodel import Session
+# --- User Customization Section ---
+# Define your input fields, response fields, and prompt template here.
+# These constants will be imported by main.py to create database records.
 
-# --- Deprecated: Static Data models and Prompt Template ---
-# These are kept for legacy support only. For dynamic, user-defined models and prompts,
-# see the logic in main.py.
+# Allowed field types
+ALLOWED_FIELD_TYPES = {"string", "integer", "float", "boolean"}
 
-class Input(SQLModel, table=False):
-    """[DEPRECATED] Use DynamicModel and related logic for user-defined input models."""
-    title: str
-    body: str
-    user_id: Optional[int] = None
-    post_id: Optional[int] = None
+# User-configurable model names
+INPUT_MODEL_NAME = "PostInput"
+RESPONSE_MODEL_NAME = "PostResponse"
 
-class Response(SQLModel, table=False):
-    """[DEPRECATED] Use dynamic response handling for user-defined models."""
-    sentiment: int
-    reason: str
+# List of input fields (name, type)
+INPUT_FIELDS = [
+    ("title", "string"),
+    ("body", "string"),
+    ("user_id", "integer"),
+    ("post_id", "integer"),
+]
 
-# [DEPRECATED] Use dynamic prompt generation in main.py for user-defined models.
+# List of response fields (name, type)
+RESPONSE_FIELDS = [
+    ("sentiment", "integer"),
+    ("reason", "string"),
+]
+
+# Validate field types
+for name, typ in INPUT_FIELDS + RESPONSE_FIELDS:
+    if typ not in ALLOWED_FIELD_TYPES:
+        raise ValueError(f"Invalid field type '{typ}' for field '{name}'. Allowed types: {ALLOWED_FIELD_TYPES}")
+
+# Prompt template string
 PROMPT_TEMPLATE = """
 Analyze the following post and rate the sentiment from 1 to 5, where 1 is negative, 3 is neutral, and 5 is positive.
 
@@ -43,55 +52,10 @@ Example output:
 }}
 
 Title:
-{title}
+{{title}}
 
 Post:
-{body}
+{{body}}
 """
 
-# For dynamic prompt generation, see main.py and the DynamicModel logic.
-
-def seed_example_dynamic_models(session: Session):
-    """
-    Seed the database with example DynamicModel, DynamicField, and DynamicPrompt records
-    corresponding to the legacy Input/Response models and PROMPT_TEMPLATE.
-    """
-    # Check if already seeded
-    if session.exec(DynamicModel.select().where(DynamicModel.name == "PostInput")).first():
-        return  # Already seeded
-
-    # Create DynamicModel for Input
-    input_model = DynamicModel(name="PostInput", description="Input model for a post")
-    session.add(input_model)
-    session.commit()
-
-    # Add fields for Input
-    input_fields = [
-        DynamicField(model_id=input_model.id, field_name="title", field_type="string"),
-        DynamicField(model_id=input_model.id, field_name="body", field_type="string"),
-        DynamicField(model_id=input_model.id, field_name="user_id", field_type="integer"),
-        DynamicField(model_id=input_model.id, field_name="post_id", field_type="integer"),
-    ]
-    session.add_all(input_fields)
-    session.commit()
-
-    # Add DynamicPrompt
-    prompt = DynamicPrompt(
-        model_id=input_model.id,
-        name="Default Post Sentiment Prompt",
-        template=PROMPT_TEMPLATE,
-        description="Prompt for sentiment analysis of a post."
-    )
-    session.add(prompt)
-    session.commit()
-
-    # Optionally, add a DynamicModel for the response schema (not required for prompt generation)
-    # response_model = DynamicModel(name="PostResponse", description="Response model for a post sentiment analysis")
-    # session.add(response_model)
-    # session.commit()
-    # response_fields = [
-    #     DynamicField(model_id=response_model.id, field_name="sentiment", field_type="integer"),
-    #     DynamicField(model_id=response_model.id, field_name="reason", field_type="string"),
-    # ]
-    # session.add_all(response_fields)
-    # session.commit()
+# --- End of user customization section ---
