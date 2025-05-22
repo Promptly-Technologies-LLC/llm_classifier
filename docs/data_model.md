@@ -192,7 +192,6 @@ class ClassificationResponse(SQLModel, table=True):
 ``` python
 from sqlmodel import Session
 
-#| echo: true
 with Session(engine) as session:
     # Create a new task definition
     task_def = TaskDefinition(
@@ -287,10 +286,3 @@ with Session(engine) as session:
 ```
 
     Data is valid and stored!
-
-``` python
-import os
-
-# Clean up database file
-os.remove("database.db")
-```
