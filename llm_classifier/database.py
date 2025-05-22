@@ -1,58 +1,53 @@
 # database.py
 
-from typing import Optional, List
-from sqlmodel import SQLModel, create_engine, Field, Relationship, Session, select
+from typing import Optional, List, Dict, Any
+from sqlmodel import SQLModel, create_engine, Field, Relationship, Session
+from sqlalchemy import Column
 from sqlalchemy.engine import Engine
-from datetime import datetime, UTC, date
+from sqlalchemy.dialects.sqlite import JSON
 
-from llm_classifier.prompt import Input, Response
+from datetime import datetime, UTC
 
-class InputType(SQLModel, table=True):
+class TaskDefinition(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(..., unique=True, index=True)
+    input_schema: Dict[str, Any] = Field(sa_column=Column(JSON))
+    response_schema: Dict[str, Any] = Field(sa_column=Column(JSON))
+    prompt_template: str
 
     classification_inputs: List["ClassificationInput"] = Relationship(
-        back_populates="input_type"
+        back_populates="task_definition"
     )
 
 # Input data model
-class ClassificationInput(Input, table=True):
+class ClassificationInput(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    processed_date: date = Field(default_factory=lambda: datetime.now(UTC))
-
-    input_type_id: Optional[int] = Field(default=None, foreign_key="inputtype.id")
-
+    custom_fields: Dict[str, Any] = Field(sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    
+    task_definition_id: int = Field(foreign_key="taskdefinition.id")
+    task_definition: TaskDefinition = Relationship(back_populates="classification_inputs")
+    
     classification_response: Optional["ClassificationResponse"] = Relationship(
         back_populates="classification_input",
         cascade_delete=True
     )
-    input_type: Optional[InputType] = Relationship(
-        back_populates="classification_inputs"
-    )
 
 # Output data model
-class ClassificationResponse(Response, table=True):
+class ClassificationResponse(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-
-    input_id: Optional[int] = Field(default=None, foreign_key="classificationinput.id")
-    classification_input: Optional[ClassificationInput] = Relationship(
+    custom_fields: Dict[str, Any] = Field(sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    
+    input_id: int = Field(foreign_key="classificationinput.id")
+    classification_input: ClassificationInput = Relationship(
         back_populates="classification_response"
     )
 
 # --- Database initialization ---
 
 def init_database(db_path: str) -> Engine:
-    """Initialize SQLite database with the necessary table."""
+    """Initialize SQLite database with the necessary tables."""
     engine = create_engine(f"sqlite:///{db_path}")
     SQLModel.metadata.create_all(engine)
     return engine
-
-
-def seed_input_types(
-    session: Session,
-    input_types: List[str]
-) -> None:
-    for itype in input_types:
-        if not session.exec(select(InputType).where(InputType.name == itype)).first():
-            session.add(InputType(name=itype))
-    session.commit()

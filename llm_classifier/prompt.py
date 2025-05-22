@@ -1,26 +1,36 @@
 # prompt.py
 
-from typing import Optional
-from sqlmodel import SQLModel
+# --- User Customization Section ---
+# Define your input fields, response fields, and prompt template here.
+# These constants will be imported by main.py to create database records.
 
-# --- Data models ---
+# Allowed field types
+ALLOWED_FIELD_TYPES = {"string", "integer", "float", "boolean"}
 
-class Input(SQLModel, table=False):
-    """Defines additional fields to include in the input table besides the
-    default id and processed_date fields."""
-    title: str
-    body: str
-    user_id: Optional[int] = None
-    post_id: Optional[int] = None
+# User-configurable model names
+INPUT_MODEL_NAME = "PostInput"
+RESPONSE_MODEL_NAME = "PostResponse"
 
-class Response(SQLModel, table=False):
-    """Defines additional fields to include in the response table besides the
-    default id field."""
-    sentiment: int
-    reason: str
+# List of input fields (name, type)
+INPUT_FIELDS = [
+    ("title", "string"),
+    ("body", "string"),
+    ("user_id", "integer"),
+    ("post_id", "integer"),
+]
 
-# --- Prompt template ---
+# List of response fields (name, type)
+RESPONSE_FIELDS = [
+    ("sentiment", "integer"),
+    ("reason", "string"),
+]
 
+# Validate field types
+for name, typ in INPUT_FIELDS + RESPONSE_FIELDS:
+    if typ not in ALLOWED_FIELD_TYPES:
+        raise ValueError(f"Invalid field type '{typ}' for field '{name}'. Allowed types: {ALLOWED_FIELD_TYPES}")
+
+# Prompt template string
 PROMPT_TEMPLATE = """
 Analyze the following post and rate the sentiment from 1 to 5, where 1 is negative, 3 is neutral, and 5 is positive.
 
@@ -42,8 +52,10 @@ Example output:
 }}
 
 Title:
-{title}
+{{title}}
 
 Post:
-{body}
+{{body}}
 """
+
+# --- End of user customization section ---
