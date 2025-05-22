@@ -39,8 +39,8 @@ if __name__ == "__main__":
             ) for record in response.json()]
 
     async def main() -> None:
-        # Initialize database
-        engine = init_database(os.getenv("DB_PATH", "data.db"))
+    # Initialize database
+    engine = init_database(os.getenv("DB_PATH", "data.db"))
         with Session(engine) as session:
             # --- Seed dynamic models, fields, and prompt from prompt.py constants ---
             # This block creates or updates the database records for user-defined models, fields, and prompt.
@@ -114,23 +114,23 @@ if __name__ == "__main__":
             #
             # Note: Running this seeding logic multiple times will not create duplicates.
             
-            INPUT_TYPES = ["Posts"]
-            
-            # Seed input types
-            seed_input_types(session, input_types=INPUT_TYPES)
+        INPUT_TYPES = ["Posts"]
         
-            # Select input types
-            name_col = inspect(InputType).columns["name"]
-            input_types = session.exec(
-                select(InputType).where(name_col.in_(INPUT_TYPES))
-            ).all()
+        # Seed input types
+        seed_input_types(session, input_types=INPUT_TYPES)
+    
+        # Select input types
+        name_col = inspect(InputType).columns["name"]
+        input_types = session.exec(
+            select(InputType).where(name_col.in_(INPUT_TYPES))
+        ).all()
 
-            # Download inputs
-            ids = download_data(
-                session,
-                input_types=input_types,
-                downloader=CustomDownloader,
-            )
+        # Download inputs
+        ids = download_data(
+            session,
+            input_types=input_types,
+            downloader=CustomDownloader,
+        )
 
             # Classify inputs concurrently
             results = await asyncio.gather(*[process_single_input(input_id, PROMPT_TEMPLATE, ClassificationResponse, session) for input_id in ids])
@@ -150,7 +150,7 @@ if __name__ == "__main__":
             "responses.csv",
             input_fields=["id", "processed_date", "input_type", "title", "body"]
         )
-        engine.dispose()
+    engine.dispose()
 
     asyncio.run(main())
 
