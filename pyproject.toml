@@ -11,7 +11,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "tenacity>=9.0.0",
     "sqlmodel>=0.0.22",
-    "responses>=0.25.6"
+    "responses>=0.25.6",
+    "sqlalchemy-schemadisplay>=2.0",
 ]
 
 [build-system]
@@ -26,6 +27,8 @@ dev = [
     "pandas-stubs>=2.2.3.241126",
     "types-requests>=2.32.0.20241016",
     "pillow>=11.1.0",
+    "nbformat>=5.10.4",
+    "quarto>=0.1.0",
 ]
 
 [tool.pytest.ini_options]
